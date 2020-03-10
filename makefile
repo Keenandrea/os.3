@@ -10,7 +10,7 @@ OBJ_TARGET = bin_addr.o
 
 all: master bin_addr
 $(BIN_NATIVE): $(OBJ_NATIVE)
-	$(CC) -o $(BIN_NATIVE) $(OBJ_NATIVE) -lpthread
+	$(CC) -o $(BIN_NATIVE) $(OBJ_NATIVE) -lm -lpthread
 $(BIN_TARGET): $(OBJ_TARGET)
 	$(CC) -o $(BIN_TARGET) $(OBJ_TARGET) -lpthread
 $(OBJ_NATIVE): master.c
