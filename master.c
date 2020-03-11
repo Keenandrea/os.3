@@ -25,6 +25,7 @@ shmem* smseg;
 int sipcid = 0;
 int pcap = 16;
 int *pids;
+int opthelp = 0;
 char fin[] = "input.dat";
 char fon[] = "log.out";
 struct sigaction satime;
@@ -41,6 +42,8 @@ void moppingup();
 void sminit(); 
 int fpinit();
 void reset();
+void helpme();
+void optset(int, char **);
 void readsm(int);
 int squarert(int);
 void overlay(int, int);
@@ -55,6 +58,14 @@ int main(int argc, char *argv[])
 	int count = 0;
 	int pairs = 0;
 	int total = 0;
+
+	optset(argc, argv);
+
+	if(opthelp)
+	{
+		helpme();
+		exit(EXIT_SUCCESS);
+	}
 
 	satime.sa_sigaction = killtime;
 	sigemptyset(&satime.sa_mask);
@@ -407,7 +418,7 @@ int fpinit()
 {
 	int lower = 1;
 	int upper = 256;
-	int range = 16;
+	int range = 64;
 
 	FILE *fp = fopen(fin, "w");
 	if(fp == NULL)
@@ -564,7 +575,7 @@ void reset()
 /* END ================================================================= */
 
 
-/* SETS TIMER ==== ===================================================== */
+/* SETS TIMER ========================================================== */
 /* ===================================================================== */
 static int satimer()
 {
@@ -575,5 +586,37 @@ static int satimer()
 	t.it_interval.tv_usec = 0;
 	
 	return(setitimer(ITIMER_REAL, &t, NULL));
+}
+/* END ================================================================= */
+
+
+/* SETS OPTIONS ======================================================== */
+/* ===================================================================== */
+void optset(int argc, char *argv[])
+{
+	int choice;
+	while((choice = getopt(argc, argv, "h")) != -1)
+	{
+		switch(choice)
+		{
+			case 'h':
+				opthelp = 1;
+				break;
+			case '?':
+				fprintf(stderr, "master: error: invalid argument\n");
+				exit(EXIT_FAILURE);				
+		}
+
+	}
+}
+/* END ================================================================= */
+
+
+/* SETS HELP ========================================================== */
+/* ===================================================================== */
+void helpme()
+{
+	printf("\n|HELP|MENU|");
+    	printf("\t-h : display help menu\n");
 }
 /* END ================================================================= */
