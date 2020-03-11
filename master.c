@@ -40,11 +40,10 @@ void killtime(int, siginfo_t *, void *);
 void moppingup();
 void sminit(); 
 int fpinit();
+void reset();
 void readsm(int);
 int squarert(int);
-int power(int,int);
 void overlay(int, int);
-//void forktwo();
 /* END ================================================================= */
 
 
@@ -78,32 +77,13 @@ int main(int argc, char *argv[])
 	int status;
 	int index = 0;
 	int acount = 0; 
-	int ecount = 0; 
-	int pidpos = 0;	
+	int ecount = 0;
+	int pidpos = 0; 	
 	int execap = 0;
-	int remain = 0;
 
-
-	int p, k, p1;
-	p = 16;
-	int r;
-	int ii = 0;
-	while(1)
-	{
-		ii++;
-		r = (p / log(p));
-		k = log(p);
-		printf("%i groups of %i numbers each\n", r, k);
-		p = r;
-	
-		if(k == 0)
-		{
-			break;
-		}	   
-	}
 	/* allocate array of pids dynamically*/
 	pids = (int*)calloc(pcap, sizeof(int));
-
+	
 	execap = parts;
 	pairs = count / 2;
 	
@@ -118,6 +98,10 @@ int main(int argc, char *argv[])
 	fprintf(fop, "\n\t--- -- --- ---------");
 	fprintf(fop, "\n\n\tPID\t\tIndex\t\tSize\t\tPair Positions\t\tPair Values\t\tResult Positions\t\tResult Values\n");
 	fclose(fop);
+
+	/* set to execute on
+ * 	   ly n/2 portion */
+	smseg->execflag = 0;
 
 	/* time */
 	satimer();
@@ -233,6 +217,107 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	reset();
+	
+	index = 0;
+	acount = 0; 
+	ecount = 0; 
+	pidpos = 0;	
+	execap = 0;
+	
+	int groups = 0;
+	int k;
+	int g;
+
+    	k = log2(total);
+    	groups = (total / k);
+	execap = groups;
+	
+	FILE* fpt = fopen(fon, "a");
+	if(fpt == NULL)
+	{
+		perror("\nmaster: error: failed open output file");
+		exit(EXIT_FAILURE);
+	}
+	fprintf(fpt, "\n\n\tLog of n/log(n) Processes");
+	fprintf(fpt, "\n\t--- -- -------- ---------");
+	fprintf(fpt, "\n\n\tPID\t\tIndex\t\tSize\t\tGroup Aggregate\t\tGroup Results\t\tGroup Sum\t\tFinal Sum\n");
+	fclose(fpt);
+
+	/* set to execute on
+ * 	   ly n/logn set  */
+	smseg->execflag = 1;
+
+	while(k != 0)
+	{ 
+		count = k;
+		smseg->icount = (k * groups);		
+
+		for(g = 0; g < groups; g++)
+		{
+			index = (g * k);			
+
+			pid_t c_pid;		
+			if(acount < pcap)
+			{
+				c_pid = fork();
+
+				if(c_pid == 0)
+				{
+					overlay(index, count);
+				}	
+				printf("child %i start\n", c_pid);
+				pids[pidpos] = c_pid;
+				pidpos++;
+				acount++;
+			}			
+			
+			if((c_pid = waitpid((pid_t)-1, &status, 0)) > 0)
+			{
+				if(WIFEXITED(status))
+				{		
+					if(WEXITSTATUS(status) == 42)
+					{	
+						ecount++;
+						acount--;
+						printf("child %i dead\n", c_pid);
+					}
+				}
+			}
+		
+			if(c_pid < 0)
+			{
+				perror("\nmaster: error: failed to fork");
+				switch(errno)
+				{
+					case EAGAIN:
+						perror("\nprocess limit");
+					case ENOMEM:
+						perror("\nout of memory");
+	
+				}
+				exit(EXIT_FAILURE);
+			}
+		
+			if(ecount == pcap && execap == 0)
+			{
+				break; 
+			}
+		}
+
+		execap--;
+		k--;
+
+		if(k == 0)
+		{
+			break;
+		}
+		/*64,32,16,8,4...*/
+		total  = total / 2;
+		/* n/log n groups*/
+		groups = total / k;
+	}
+
 	shmdt(smseg);
 	shmctl(sipcid, IPC_RMID, NULL); 
 	moppingup();
@@ -249,8 +334,8 @@ void overlay(int index, int count)
 	char yy[20];
 					
 	snprintf(xx, sizeof(xx), "%i", index);	
-	snprintf(yy, sizeof(yy), "%i", count);
-					
+	snprintf(yy, sizeof(yy), "%i", count);	
+				
 	char* fargs[] = {"./bin_addr", xx, yy, NULL};
 	execv(fargs[0], fargs);
 
@@ -445,7 +530,7 @@ void killctrl(int sig, siginfo_t *sainfo, void *ptr)
 /* END ================================================================= */
 
 
-/* KILLS ANY REMAINING PROCESSES ======================================= */
+/* KILLS ANY REMAINING PROCESSES & FREES MEMORY ======================== */
 /* ===================================================================== */
 void moppingup()
 {
@@ -460,6 +545,24 @@ void moppingup()
 	
 	free(pids);
 }
+/* END ================================================================= */
+
+
+/* KILLS ANY REMAINING PROCESSES ======================================= */
+/* ===================================================================== */
+void reset()
+{
+	int i;
+	for(i = 0; i < pcap; i++)
+	{
+		if(pids[i] > 0)
+		{
+			kill(pids[i], SIGTERM);
+		}
+	}
+}
+/* END ================================================================= */
+
 
 /* SETS TIMER ==== ===================================================== */
 /* ===================================================================== */
