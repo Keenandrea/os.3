@@ -21,11 +21,11 @@
 
 /* GLOBAL VARIABLES ==================================================== */
 /* ===================================================================== */
-shmem* smseg; 
+shmem* smseg;
 int sipcid = 0;
 int pcap = 16;
+int optr = 16;
 int *pids;
-int opthelp = 0;
 char fin[] = "input.dat";
 char fon[] = "log.out";
 struct sigaction satime;
@@ -40,7 +40,7 @@ void killctrl(int, siginfo_t *, void *);
 void killtime(int, siginfo_t *, void *);
 void moppingup();
 void sminit(); 
-int fpinit();
+int fpinit(int);
 void reset();
 void helpme();
 void optset(int, char **);
@@ -57,15 +57,21 @@ int main(int argc, char *argv[])
 	int parts = 0;
 	int count = 0;
 	int pairs = 0;
-	int total = 0;
+	int total = 0;		
 
 	optset(argc, argv);
-
-	if(opthelp)
+	if(optr < 16 || optr > 128)
 	{
-		helpme();
-		exit(EXIT_SUCCESS);
+		printf("\nmaster: error: input file must contain between 16 and 128 integers. your specified: [%i] integers\n", optr);
+		exit(EXIT_FAILURE);
 	}
+	if(optr % 2 != 0)
+	{
+		printf("\nmaster: warning: you specified an odd number of integers for your input file ([%i]). odd numbers may cause undefined behavior\n", optr);
+		exit(EXIT_FAILURE);
+	}
+
+	printf("\nExecuting program computations on [%i] integers\n", optr);
 
 	satime.sa_sigaction = killtime;
 	sigemptyset(&satime.sa_mask);
@@ -77,7 +83,7 @@ int main(int argc, char *argv[])
 	sactrl.sa_flags = 0;
 	sigaction(SIGINT, &sactrl, NULL);
 
-	count = fpinit();
+	count = fpinit(optr);
 	total = count;		
 	sminit();
 	readsm(count);
@@ -106,9 +112,10 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 	fprintf(fop, "\n\tLog of n/2 Processes");
-	fprintf(fop, "\n\t--- -- --- ---------");
+	fprintf(fop, "\n\t--- -- --- ---------");	
+	printf("master: time: starting %i/2 processes\n", optr);
 	fprintf(fop, "\n\n\tPID\t\tIndex\t\tSize\t\tPair Positions\t\tPair Values\t\tResult Positions\t\tResult Values\n");
-	fclose(fop);
+	fclose(fop);	
 
 	/* set to execute on
  * 	   ly n/2 portion */
@@ -116,6 +123,10 @@ int main(int argc, char *argv[])
 
 	/* time */
 	satimer();
+	//start_t = clock();
+	struct timeval tv1, tv2, tv3, tv4;
+	gettimeofday(&tv1, NULL);
+
 	/* loop and execute sqrt of count */
 	for(pass = 1; pass <= parts; pass++)
 	{ 
@@ -138,8 +149,8 @@ int main(int argc, char *argv[])
  * 					   ogram from the cur
  * 					   rent program    */
 					overlay(index, count);
-				}	
-				printf("child %i start\n", cpid);
+				}
+				printf("\n");	
 				pids[pidpos] = cpid;
 				pidpos++;
 				acount++;
@@ -177,7 +188,7 @@ int main(int argc, char *argv[])
 					{	
 						ecount++;
 						acount--;
-						printf("child %i dead\n", cpid);
+						printf("\n");
 					}
 				}
 			}
@@ -228,6 +239,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	gettimeofday(&tv2, NULL);
 	reset();
 	
 	index = 0;
@@ -250,6 +262,10 @@ int main(int argc, char *argv[])
 		perror("\nmaster: error: failed open output file");
 		exit(EXIT_FAILURE);
 	}
+	printf("\nmaster: time: ending %i/2 processes\n", optr);
+	fprintf(fpt, "Total time taken for n/2 processes: [%f] seconds\n", (double) (tv2.tv_usec - tv1.tv_usec) / 10000000 + (double) (tv2.tv_sec - tv1.tv_sec));
+	fprintf(fpt, "----- ---- ----- --- --- ---------\n\n");
+	printf("master: time: starting %i/log %i processes\n\n", optr, optr);
 	fprintf(fpt, "\n\n\tLog of n/log(n) Processes");
 	fprintf(fpt, "\n\t--- -- -------- ---------");
 	fprintf(fpt, "\n\n\tPID\t\tIndex\t\tSize\t\tGroup Aggregate\t\tGroup Results\t\tGroup Sum\t\tFinal Sum\n");
@@ -258,6 +274,8 @@ int main(int argc, char *argv[])
 	/* set to execute on
  * 	   ly n/logn set  */
 	smseg->execflag = 1;
+	
+	gettimeofday(&tv3, NULL);
 
 	while(k != 0)
 	{ 
@@ -277,7 +295,7 @@ int main(int argc, char *argv[])
 				{
 					overlay(index, count);
 				}	
-				printf("child %i start\n", c_pid);
+				printf("\n");
 				pids[pidpos] = c_pid;
 				pidpos++;
 				acount++;
@@ -291,7 +309,7 @@ int main(int argc, char *argv[])
 					{	
 						ecount++;
 						acount--;
-						printf("child %i dead\n", c_pid);
+						printf("\n");
 					}
 				}
 			}
@@ -328,10 +346,27 @@ int main(int argc, char *argv[])
 		/* n/log n groups*/
 		groups = total / k;
 	}
+	
+	gettimeofday(&tv4, NULL);
+	
+	FILE* fpp = fopen(fon, "a");
+	if(fpp == NULL)
+	{
+		perror("\nmaster: error: failed open output file");
+		exit(EXIT_FAILURE);
+	}
+	printf("\nmaster: time: ending %i/log %i processes\n", optr, optr);
+	fprintf(fpp, "Total time taken for n/log n processes: [%f] seconds\n", (double) (tv4.tv_usec - tv3.tv_usec) / 1000000 + (double) (tv4.tv_sec - tv3.tv_sec));
+	fprintf(fpp, "----- ---- ----- --- ----- - ---------\n\n");
+	fclose(fpp);
 
 	shmdt(smseg);
 	shmctl(sipcid, IPC_RMID, NULL); 
 	moppingup();
+	
+	printf("Program exit success.\n\n");
+	printf("Open log.out file for results\n\n");
+
 return 0;
 }
 /* END ================================================================= */
@@ -414,11 +449,10 @@ void readsm(int count)
 
 /* CREATES INPUT DATA FILE  ============================================ */
 /* ===================================================================== */
-int fpinit()
+int fpinit(int range)
 {
 	int lower = 1;
 	int upper = 256;
-	int range = 64;
 
 	FILE *fp = fopen(fin, "w");
 	if(fp == NULL)
@@ -595,12 +629,15 @@ static int satimer()
 void optset(int argc, char *argv[])
 {
 	int choice;
-	while((choice = getopt(argc, argv, "h")) != -1)
+	while((choice = getopt(argc, argv, "hr:")) != -1)
 	{
 		switch(choice)
 		{
 			case 'h':
-				opthelp = 1;
+				helpme();
+				exit(EXIT_SUCCESS);
+			case 'r':
+				optr = atoi(optarg);
 				break;
 			case '?':
 				fprintf(stderr, "master: error: invalid argument\n");
@@ -616,7 +653,8 @@ void optset(int argc, char *argv[])
 /* ===================================================================== */
 void helpme()
 {
-	printf("\n|HELP|MENU|");
+	printf("\n|HELP|MENU|\n\n");
     	printf("\t-h : display help menu\n");
+	printf("\t-r : specify number of integers written to input file. default is 16\n\n");
 }
 /* END ================================================================= */
